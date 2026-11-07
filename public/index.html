@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Closet Inventory</title>
+    <style>
+        body { 
+            font-family: system-ui, sans-serif; 
+            max-width: 800px; 
+            margin: 20px auto; 
+            padding: 0 15px; 
+            background-color: #3f3738; 
+            color: #ffffff; 
+        }
+        .card { 
+            border: 1px solid #B5000C; 
+            background-color: #3f3738; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 20px; 
+        }
+        .item-list { 
+            list-style: none; 
+            padding: 0; 
+            margin: 0; 
+        }
+        .item-card { 
+            border-bottom: 1px solid #555; 
+            padding: 10px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .item-card:last-child {
+            border-bottom: none;
+        }
+        .tag-private { 
+            background: #3f3738; 
+            color: #c62828; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-size: 0.8em; 
+            margin-left: 8px;
+            border: 1px solid #c62828;
+        }
+        .category-header {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #ffffff;
+            border-bottom: 2px solid #B5000C;
+            padding-bottom: 5px;
+        }
+        .controls { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 15px; 
+        }
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
+            background-color: #3f3738;
+            color: #ffffff;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        input[type="text"]#search-box {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        button {
+            background-color: #C0830B; 
+            color: #ffffff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #a67009;
+        }
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Closet Inventory</h1>
+
+    <!-- Password Lock Banner -->
+    <div class="card" id="auth-section">
+        <label for="passcode">Private Section Access: </label>
+        <input type="password" id="passcode" placeholder="Enter password">
+        <button onclick="unlockPrivate()">Unlock</button>
+        <span id="auth-status" style="margin-left: 10px;"></span>
+    </div>
+
+    <!-- Add Form -->
+    <div class="card">
+        <h3>Add New Item</h3>
+        <form id="add-item-form" onsubmit="addItem(event)">
+            <input type="text" id="name" placeholder="Item Name" required>
+            <input type="text" id="category" placeholder="Category" required>
+            <input type="number" id="quantity" value="1" min="1" required>
+            <label><input type="checkbox" id="isPrivate"> Private?</label>
+            <button type="submit">Add Item</button>
+        </form>
+    </div>
+
+    <!-- Inventory Display -->
+    <div class="card">
+        <h3>Inventory Items</h3>
+        
+        <!-- Global Search Bar -->
+        <input type="text" id="search-box" placeholder="Search all items by name or category..." oninput="renderItems()">
+
+        <div id="inventory-container"></div>
+    </div>
+
+    <script>
+        let items = [];
+        let authToken = '';
+
+        async function fetchItems() {
+            const res = await fetch('/api/items', {
+                headers: { 'X-Access-Token': authToken }
+            });
+            items = await res.json();
+            renderItems();
+        }
+
+        function renderItems() {
+            const container = document.getElementById('inventory-container');
+            const searchQuery = document.getElementById('search-box').value.toLowerCase().trim();
+            container.innerHTML = '';
+
+            // 1. Filter items based on the search bar
+            const filteredItems = items.filter(item => {
+                return item.name.toLowerCase().includes(searchQuery) || 
+                       item.category.toLowerCase().includes(searchQuery);
+            });
+
+            if (filteredItems.length === 0) {
+                container.innerHTML = '<p style="color: #aaa; font-style: italic;">No items found.</p>';
+                return;
+            }
+
+            // 2. Group items by category
+            const grouped = {};
+            filteredItems.forEach(item => {
+                const cat = item.category.trim();
+                if (!grouped[cat]) {
+                    grouped[cat] = [];
+                }
+                grouped[cat].push(item);
+            });
+
+            // 3. Sort category names alphabetically (A to Z)
+            const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+            // 4. Render category headers and item lists
+            sortedCategories.forEach(category => {
+                const catDiv = document.createElement('div');
+                
+                const header = document.createElement('div');
+                header.className = 'category-header';
+                header.textContent = category;
+                catDiv.appendChild(header);
+
+                const ul = document.createElement('ul');
+                ul.className = 'item-list';
+
+                // Sort items inside this category alphabetically by name
+                const sortedItemsInCat = grouped[category].sort((a, b) => a.name.localeCompare(b.name));
+
+                sortedItemsInCat.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'item-card';
+                    li.innerHTML = `
+                        <div>
+                            <strong>${item.name}</strong>
+                            ${item.isPrivate ? '<span class="tag-private">Private</span>' : ''}
+                        </div>
+                        <div>Qty: ${item.quantity}</div>
+                    `;
+                    ul.appendChild(li);
+                });
+
+                catDiv.appendChild(ul);
+                container.appendChild(catDiv);
+            });
+        }
+
+        async function addItem(e) {
+            e.preventDefault();
+            const newItem = {
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                quantity: document.getElementById('quantity').value,
+                isPrivate: document.getElementById('isPrivate').checked
+            };
+
+            const response = await fetch('/api/items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newItem)
+            });
+
+            if (response.ok) {
+                document.getElementById('add-item-form').reset();
+                await fetchItems();
+            } else {
+                alert('Failed to save item.');
+            }
+        }
+
+        async function unlockPrivate() {
+            const pass = document.getElementById('passcode').value;
+            const res = await fetch('/api/verify-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pass })
+            });
+
+            if (res.ok) {
+                authToken = pass;
+                document.getElementById('auth-status').textContent = 'Unlocked!';
+                document.getElementById('auth-status').style.color = '#81c784';
+                fetchItems();
+            } else {
+                document.getElementById('auth-status').textContent = 'Incorrect password';
+                document.getElementById('auth-status').style.color = '#e57373';
+            }
+        }
+
+        // Initial Load
+        fetchItems();
+    </script>
+</body>
+</html>
