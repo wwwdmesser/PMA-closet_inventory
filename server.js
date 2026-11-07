@@ -55,6 +55,39 @@ app.post('/api/items', async (req, res) => {
     }
 });
 
+// Delete an item entirely by ID
+app.delete('/api/items/:id', async (req, res) => {
+    try {
+        await Item.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete item' });
+    }
+});
+
+// Update item quantity
+app.patch('/api/items/:id', async (req, res) => {
+    try {
+        const { quantity } = req.body;
+        const newQty = parseInt(quantity);
+        
+        if (newQty <= 0) {
+            // If quantity drops to 0 or below, delete it automatically
+            await Item.findByIdAndDelete(req.params.id);
+            return res.json({ success: true, deleted: true });
+        }
+
+        const updatedItem = await Item.findByIdAndUpdate(
+            req.params.id,
+            { quantity: newQty },
+            { new: true }
+        );
+        res.json(updatedItem);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to update quantity' });
+    }
+});
+
 app.post('/api/verify-password', (req, res) => {
     const { password } = req.body;
     if (password === PRIVATE_PASSWORD) {
